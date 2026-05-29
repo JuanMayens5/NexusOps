@@ -1,9 +1,61 @@
 // src/components/views/ViewDashboard.jsx
+import { useState, useEffect } from 'react';
 import { WEEKLY_BARS, DAYS_ABBR } from '../../data/constants';
 
+const DEFAULT_APPTS = [
+    { time: "09:00", name: "Carlos M.", svc: "Corte + Barba · Juan", status: "Completada", cls: "s-done" },
+    { time: "10:30", name: "Roberto A.", svc: "Corte · Pedro", status: "Pendiente", cls: "s-pend" },
+    { time: "11:00", name: "Luis G.", svc: "Barba · Juan", status: "Cancelada", cls: "s-canc" },
+    { time: "14:00", name: "Marco R.", svc: "Corte + Barba · Ana", status: "Pendiente", cls: "s-pend" },
+];
+
 export default function ViewDashboard({ addToast }) {
+    const [appointments, setAppointments] = useState(() => {
+        const saved = localStorage.getItem("nexus_appointments");
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                return DEFAULT_APPTS;
+            }
+        }
+        return DEFAULT_APPTS;
+    });
+
+    const [showModal, setShowModal] = useState(false);
+    const [newAppt, setNewAppt] = useState({ time: "", name: "", svc: "" });
+
+    useEffect(() => {
+        localStorage.setItem("nexus_appointments", JSON.stringify(appointments));
+    }, [appointments]);
+
+    const handleAddAppt = () => {
+        if (!newAppt.time || !newAppt.name || !newAppt.svc) {
+            if (addToast) addToast("Por favor completa todos los campos", "error");
+            return;
+        }
+
+        const newEntry = {
+            time: newAppt.time,
+            name: newAppt.name,
+            svc: newAppt.svc,
+            status: "Pendiente",
+            cls: "s-pend"
+        };
+
+        setAppointments(prev => {
+            const updated = [...prev, newEntry];
+            updated.sort((a, b) => a.time.localeCompare(b.time));
+            return updated;
+        });
+
+        if (addToast) addToast("Cita creada exitosamente");
+        setShowModal(false);
+        setNewAppt({ time: "", name: "", svc: "" });
+    };
+
     return (
-        <div>
+        <div style={{ position: 'relative' }}>
             <div className="nx-grid-4">
                 {[
                     { icon: "ti-calendar-check", iconColor: "#3b82f6", label: "Citas del Mes", val: "247", sub: "↑ 18% vs mes anterior", warn: false },
@@ -42,26 +94,33 @@ export default function ViewDashboard({ addToast }) {
                     </div>
                 </div>
 
-                <div className="nx-card">
-                    <div className="nx-section-title">
-                        <i className="ti ti-clock" style={{ fontSize: 16, color: "#22d3ee" }} />
-                        Próximas Citas del Día
-                    </div>
-                    {[
-                        { time: "09:00", name: "Carlos M.", svc: "Corte + Barba · Juan", status: "Completada", cls: "s-done" },
-                        { time: "10:30", name: "Roberto A.", svc: "Corte · Pedro", status: "Pendiente", cls: "s-pend" },
-                        { time: "11:00", name: "Luis G.", svc: "Barba · Juan", status: "Cancelada", cls: "s-canc" },
-                        { time: "14:00", name: "Marco R.", svc: "Corte + Barba · Ana", status: "Pendiente", cls: "s-pend" },
-                    ].map((a) => (
-                        <div className="nx-appt-item" key={a.time + a.name}>
-                            <div className="nx-appt-time">{a.time}</div>
-                            <div>
-                                <div className="nx-appt-name">{a.name}</div>
-                                <div className="nx-appt-svc">{a.svc}</div>
-                            </div>
-                            <span className={`nx-status ${a.cls}`}>{a.status}</span>
+                <div className="nx-card" style={{ position: 'relative' }}>
+                    <div className="nx-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <i className="ti ti-clock" style={{ fontSize: 16, color: "#22d3ee" }} />
+                            Próximas Citas del Día
                         </div>
-                    ))}
+                        <button
+                            className="nx-btn nx-btn-primary"
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                            onClick={() => setShowModal(true)}
+                        >
+                            <i className="ti ti-plus" /> Nueva Cita
+                        </button>
+                    </div>
+
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                        {appointments.map((a, i) => (
+                            <div className="nx-appt-item" key={a.time + a.name + i}>
+                                <div className="nx-appt-time">{a.time}</div>
+                                <div>
+                                    <div className="nx-appt-name">{a.name}</div>
+                                    <div className="nx-appt-svc">{a.svc}</div>
+                                </div>
+                                <span className={`nx-status ${a.cls}`}>{a.status}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -81,6 +140,49 @@ export default function ViewDashboard({ addToast }) {
                     </div>
                 </div>
             </div>
+
+            {showModal && (
+                <div className="modal-overlay" style={{ position: 'fixed', zIndex: 9999 }}>
+                    <div className="modal-box">
+                        <div className="modal-title">
+                            <span>Nueva Cita</span>
+                            <i className="ti ti-x" style={{ cursor: 'pointer', color: '#64748b' }} onClick={() => setShowModal(false)} />
+                        </div>
+                        <div className="modal-field">
+                            <div className="modal-label">Hora</div>
+                            <input
+                                type="time"
+                                className="modal-input"
+                                value={newAppt.time}
+                                onChange={(e) => setNewAppt({ ...newAppt, time: e.target.value })}
+                            />
+                        </div>
+                        <div className="modal-field">
+                            <div className="modal-label">Cliente</div>
+                            <input
+                                type="text"
+                                className="modal-input"
+                                placeholder="Nombre del cliente"
+                                value={newAppt.name}
+                                onChange={(e) => setNewAppt({ ...newAppt, name: e.target.value })}
+                            />
+                        </div>
+                        <div className="modal-field">
+                            <div className="modal-label">Servicio</div>
+                            <input
+                                type="text"
+                                className="modal-input"
+                                placeholder="Ej: Corte + Barba · Juan"
+                                value={newAppt.svc}
+                                onChange={(e) => setNewAppt({ ...newAppt, svc: e.target.value })}
+                            />
+                        </div>
+                        <button className="nx-btn nx-btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }} onClick={handleAddAppt}>
+                            Guardar Cita
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
