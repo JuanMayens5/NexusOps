@@ -1,9 +1,9 @@
-import { useState } from "react";
-import './styles/Dashboard.css'; // 1. Importamos los estilos directamente
-import { TITLES } from './data/constants'; // 2. Importamos los títulos
-import { useToasts } from './hooks/useToasts'; // 3. Importamos el hook
+import { useState, useEffect, useRef } from "react";
+import './styles/Dashboard.css';
+import { TITLES } from './data/constants';
+import { MODULE_INFO } from './data/tourSteps';
+import { useToasts } from './hooks/useToasts';
 
-// 4. Importamos las vistas (asumiendo que ya creaste los archivos)
 import ViewDashboard from './components/views/ViewDashboard';
 import ViewAgenda from './components/views/ViewAgenda';
 import ViewPrecios from './components/views/ViewPrecios';
@@ -11,10 +11,14 @@ import ViewEspera from './components/views/ViewEspera';
 import ViewClientes from './components/views/ViewClientes';
 import ViewPlanes from './components/views/ViewPlanes';
 import Modal from './components/Modal';
+import TourOverlay from './components/TourOverlay';
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function NexusOpsDashboard() {
     const [view, setView] = useState("dashboard");
     const [modalOpen, setModalOpen] = useState(false);
+    const [tourActive, setTourActive] = useState(false);
+    const [viewKey, setViewKey] = useState(0); // fuerza re-render para animación fadeIn
     const { toasts, addToast } = useToasts();
 
     const navItems = [
@@ -28,10 +32,26 @@ export default function NexusOpsDashboard() {
 
     const groups = ["Principal", "Módulos IA", "Negocio"];
 
+    const handleNavChange = (id) => {
+        if (id === view) return;
+        setView(id);
+        setViewKey(k => k + 1); // dispara animación fadeInUp
+    };
+
     const handleSaveAppt = () => {
         setModalOpen(false);
         addToast("Cita registrada con éxito. Recordatorio enviado al cliente.");
     };
+
+    // Para el tour: navegar a una vista específica
+    const handleTourNavigate = (targetView) => {
+        if (targetView !== view) {
+            setView(targetView);
+            setViewKey(k => k + 1);
+        }
+    };
+
+    const moduleInfo = MODULE_INFO[view];
 
     const currentView = () => {
         switch (view) {
@@ -47,7 +67,6 @@ export default function NexusOpsDashboard() {
 
     return (
         <div className="nx-root">
-
             <div className="nx-wrap">
                 {/* Sidebar */}
                 <div className="nx-sidebar">
@@ -77,7 +96,7 @@ export default function NexusOpsDashboard() {
                                     <div
                                         key={n.id}
                                         className={`nx-nav-item${view === n.id ? " active" : ""}`}
-                                        onClick={() => setView(n.id)}
+                                        onClick={() => handleNavChange(n.id)}
                                     >
                                         <i className={`ti ${n.icon}`} />
                                         {n.label}
@@ -86,6 +105,17 @@ export default function NexusOpsDashboard() {
                                 ))}
                             </div>
                         ))}
+                    </div>
+
+                    {/* Botón Iniciar Demo */}
+                    <div className="nx-demo-btn-wrap">
+                        <button
+                            className={`nx-demo-btn${tourActive ? " active" : ""}`}
+                            onClick={() => setTourActive(t => !t)}
+                        >
+                            <i className={`ti ${tourActive ? "ti-player-stop" : "ti-player-play"}`} />
+                            {tourActive ? "Detener Demo" : "Iniciar Demo"}
+                        </button>
                     </div>
 
                     <div className="nx-user">
@@ -120,6 +150,24 @@ export default function NexusOpsDashboard() {
                         </div>
                     </div>
 
+                    {/* Banner de Contexto del Módulo */}
+                    {moduleInfo && (
+                        <div className="nx-module-banner">
+                            <div className="nx-module-banner-left">
+                                <div className="nx-module-banner-icon" style={{ '--module-color': moduleInfo.color }}>
+                                    <i className={`ti ${moduleInfo.icon}`} />
+                                </div>
+                                <div>
+                                    <div className="nx-module-banner-title">{moduleInfo.title}</div>
+                                    <div className="nx-module-banner-desc">{moduleInfo.desc}</div>
+                                </div>
+                            </div>
+                            <div className="nx-module-banner-tag" style={{ '--module-color': moduleInfo.color }}>
+                                {moduleInfo.tag}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="nx-content">
                         {/* Toast area */}
                         <div>
@@ -130,12 +178,25 @@ export default function NexusOpsDashboard() {
                                 </div>
                             ))}
                         </div>
-                        {currentView()}
+
+                        {/* Vista con animación fadeInUp al cambiar */}
+                        <div key={viewKey} className="nx-view-enter">
+                            {currentView()}
+                        </div>
                     </div>
                 </div>
 
                 {/* Modal */}
                 {modalOpen && <Modal onClose={() => setModalOpen(false)} onSave={handleSaveAppt} />}
+
+                {/* Tour Overlay */}
+                {tourActive && (
+                    <TourOverlay
+                        currentView={view}
+                        onNavigate={handleTourNavigate}
+                        onEnd={() => setTourActive(false)}
+                    />
+                )}
             </div>
         </div>
     );

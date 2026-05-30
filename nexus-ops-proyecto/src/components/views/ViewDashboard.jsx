@@ -1,5 +1,5 @@
 // src/components/views/ViewDashboard.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WEEKLY_BARS, DAYS_ABBR } from '../../data/constants';
 
 const DEFAULT_APPTS = [
@@ -9,15 +9,71 @@ const DEFAULT_APPTS = [
     { time: "14:00", name: "Marco R.", svc: "Corte + Barba · Ana", status: "Pendiente", cls: "s-pend" },
 ];
 
+// Hook count-up animado
+function useCountUp(target, duration = 1200, delay = 0) {
+    const [value, setValue] = useState(0);
+    const rafRef = useRef(null);
+
+    useEffect(() => {
+        let start = null;
+        const numeric = parseFloat(String(target).replace(/[^0-9.]/g, ''));
+        if (isNaN(numeric)) { setValue(target); return; }
+
+        const delayTimer = setTimeout(() => {
+            const step = (timestamp) => {
+                if (!start) start = timestamp;
+                const elapsed = timestamp - start;
+                const progress = Math.min(elapsed / duration, 1);
+                // easeOutExpo
+                const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+                setValue(Math.floor(ease * numeric));
+                if (progress < 1) {
+                    rafRef.current = requestAnimationFrame(step);
+                } else {
+                    setValue(numeric);
+                }
+            };
+            rafRef.current = requestAnimationFrame(step);
+        }, delay);
+
+        return () => {
+            clearTimeout(delayTimer);
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [target, duration, delay]);
+
+    return value;
+}
+
+// Formatea el valor del KPI con el prefijo/sufijo original
+function formatKpi(template, animated) {
+    if (template.includes('Q ')) return `Q ${animated.toLocaleString('es-GT')}`;
+    if (template.includes('%')) return `${animated}%`;
+    return String(animated);
+}
+
+// Barra animada individual
+function AnimatedBar({ height, color, delay }) {
+    const [h, setH] = useState(0);
+    useEffect(() => {
+        const t = setTimeout(() => setH(height), delay);
+        return () => clearTimeout(t);
+    }, [height, delay]);
+
+    return (
+        <div className="nx-bar" style={{
+            height: `${h}%`,
+            background: color,
+            transition: `height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+        }} />
+    );
+}
+
 export default function ViewDashboard({ addToast }) {
     const [appointments, setAppointments] = useState(() => {
         const saved = localStorage.getItem("nexus_appointments");
         if (saved) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                return DEFAULT_APPTS;
-            }
+            try { return JSON.parse(saved); } catch (e) { return DEFAULT_APPTS; }
         }
         return DEFAULT_APPTS;
     });
@@ -29,12 +85,19 @@ export default function ViewDashboard({ addToast }) {
         localStorage.setItem("nexus_appointments", JSON.stringify(appointments));
     }, [appointments]);
 
+    // Count-up para cada KPI — staggered con delay
+    const kpi0 = useCountUp(247, 1400, 100);
+    const kpi1 = useCountUp(4820, 1600, 200);
+    const kpi2 = useCountUp(78, 1200, 300);
+    const kpi3 = useCountUp(31, 1000, 400);
+
+    const kpiAnimated = [kpi0, kpi1, kpi2, kpi3];
+
     const handleAddAppt = () => {
         if (!newAppt.time || !newAppt.name || !newAppt.svc) {
             if (addToast) addToast("Por favor completa todos los campos", "error");
             return;
         }
-
         const newEntry = {
             time: newAppt.time,
             name: newAppt.name,
@@ -42,33 +105,35 @@ export default function ViewDashboard({ addToast }) {
             status: "Pendiente",
             cls: "s-pend"
         };
-
         setAppointments(prev => {
             const updated = [...prev, newEntry];
             updated.sort((a, b) => a.time.localeCompare(b.time));
             return updated;
         });
-
         if (addToast) addToast("Cita creada exitosamente");
         setShowModal(false);
         setNewAppt({ time: "", name: "", svc: "" });
     };
 
+    const kpis = [
+        { icon: "ti-calendar-check", iconColor: "#3b82f6", label: "Citas del Mes", raw: "247", sub: "↑ 18% vs mes anterior", warn: false },
+        { icon: "ti-receipt", iconColor: "#22d3ee", label: "Ingresos Recuperados", raw: "Q 4,820", sub: "↑ 32% por IA dinámica", warn: false },
+        { icon: "ti-shield-check", iconColor: "#10b981", label: "No-Shows Mitigados", raw: "78%", sub: "↓ 14 cancelaciones hoy", warn: true },
+        { icon: "ti-cpu", iconColor: "#a78bfa", label: "Espacios por IA", raw: "31", sub: "Esta semana optimizados", warn: false },
+    ];
+
     return (
         <div style={{ position: 'relative' }}>
             <div className="nx-grid-4">
-                {[
-                    { icon: "ti-calendar-check", iconColor: "#3b82f6", label: "Citas del Mes", val: "247", sub: "↑ 18% vs mes anterior", warn: false },
-                    { icon: "ti-receipt", iconColor: "#22d3ee", label: "Ingresos Recuperados", val: "Q 4,820", sub: "↑ 32% por IA dinámica", warn: false },
-                    { icon: "ti-shield-check", iconColor: "#10b981", label: "No-Shows Mitigados", val: "78%", sub: "↓ 14 cancelaciones hoy", warn: true },
-                    { icon: "ti-cpu", iconColor: "#a78bfa", label: "Espacios por IA", val: "31", sub: "Esta semana optimizados", warn: false },
-                ].map((k) => (
-                    <div className="nx-card" key={k.label}>
+                {kpis.map((k, idx) => (
+                    <div className="nx-card kpi-card-animated" key={k.label}>
                         <div className="nx-kpi-label">
                             <i className={`ti ${k.icon}`} style={{ fontSize: 14, color: k.iconColor }} />
                             {k.label}
                         </div>
-                        <div className="nx-kpi-val">{k.val}</div>
+                        <div className="nx-kpi-val">
+                            {formatKpi(k.raw, kpiAnimated[idx])}
+                        </div>
                         <div className={`nx-kpi-sub${k.warn ? " warn" : ""}`}>{k.sub}</div>
                     </div>
                 ))}
@@ -83,7 +148,7 @@ export default function ViewDashboard({ addToast }) {
                     <div className="nx-bar-wrap">
                         {WEEKLY_BARS.map((b, i) => (
                             <div className="nx-bar-col" key={i}>
-                                <div className="nx-bar" style={{ height: `${b.h}%`, background: b.c }} />
+                                <AnimatedBar height={b.h} color={b.c} delay={i * 80 + 200} />
                             </div>
                         ))}
                     </div>
