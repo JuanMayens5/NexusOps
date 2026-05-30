@@ -154,7 +154,10 @@ export default function NexusOpsDashboard() {
                     {moduleInfo && (
                         <div className="nx-module-banner">
                             <div className="nx-module-banner-left">
-                                <div className="nx-module-banner-icon" style={{ '--module-color': moduleInfo.color }}>
+                                <div
+                                    className="nx-module-banner-icon"
+                                    style={{ '--module-color': moduleInfo.color } as React.CSSProperties}
+                                >
                                     <i className={`ti ${moduleInfo.icon}`} />
                                 </div>
                                 <div>
@@ -162,7 +165,10 @@ export default function NexusOpsDashboard() {
                                     <div className="nx-module-banner-desc">{moduleInfo.desc}</div>
                                 </div>
                             </div>
-                            <div className="nx-module-banner-tag" style={{ '--module-color': moduleInfo.color }}>
+                            <div
+                                className="nx-module-banner-tag"
+                                style={{ '--module-color': moduleInfo.color } as React.CSSProperties}
+                            >
                                 {moduleInfo.tag}
                             </div>
                         </div>
